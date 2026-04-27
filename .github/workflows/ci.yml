@@ -12,12 +12,21 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      - name: Set image tag
+        id: vars
+        run: echo "TAG=${GITHUB_SHA}" >> $GITHUB_OUTPUT
+
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ secrets.AWS_REGION }}
+
+      - name: Create ECR repository if not exists
+        run: |
+          aws ecr describe-repositories --repository-names ${{ secrets.ECR_REPOSITORY }} \
+          || aws ecr create-repository --repository-name ${{ secrets.ECR_REPOSITORY }}
 
       - name: Login to ECR
         run: |
@@ -26,14 +35,14 @@ jobs:
           ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com
 
       - name: Build image
-        run: docker build -t ecommerce-app .
+        run: docker build -t ecommerce-app ./backend
 
       - name: Tag image
         run: |
           docker tag ecommerce-app:latest \
-          ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/${{ secrets.ECR_REPOSITORY }}:latest
+          ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/${{ secrets.ECR_REPOSITORY }}:${{ steps.vars.outputs.TAG }}
 
-      - name: Push image to ECR
+      - name: Push image
         run: |
           docker push \
-          ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/${{ secrets.ECR_REPOSITORY }}:latest
+          ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/${{ secrets.ECR_REPOSITORY }}:${{ steps.vars.outputs.TAG }}
